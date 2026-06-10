@@ -1,0 +1,366 @@
+index.html<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Modular Music Lab</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <style>
+    :root {
+      --bg:        #0d0d0f;
+      --surface:   #16161a;
+      --border:    #2a2a35;
+      --accent:    #7c6af7;
+      --accent2:   #f76a8c;
+      --active:    #a8f76a;
+      --text:      #e8e8f0;
+      --muted:     #6b6b80;
+      --radius:    8px;
+      --font-mono: 'Courier New', monospace;
+      --font-ui:   system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font-ui); min-height: 100vh; padding: 24px; }
+    .app-shell { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    .app-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    .app-header h1 { font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 0.15em; color: var(--accent); text-transform: uppercase; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 8px; transition: background 0.3s; }
+    .status-dot.running { background: var(--active); box-shadow: 0 0 6px var(--active); }
+    .status-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    .module-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .module-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgba(124, 106, 247, 0.05); }
+    .module-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.15em; }
+    .module-desc { font-size: 0.75rem; color: var(--muted); }
+    .module-body { padding: 20px; }
+    .transport { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .btn { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--text); padding: 10px 20px; cursor: pointer; transition: all 0.15s; }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-play { border-color: var(--active); color: var(--active); }
+    .btn-play:hover { background: rgba(168, 247, 106, 0.1); }
+    .btn-stop { border-color: var(--accent2); color: var(--accent2); }
+    .btn-stop:hover { background: rgba(247, 106, 140, 0.1); }
+    .bpm-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+    .bpm-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
+    .bpm-display { font-family: var(--font-mono); font-size: 1.4rem; color: var(--text); min-width: 3ch; text-align: center; }
+    input[type="range"] { -webkit-appearance: none; width: 120px; height: 4px; border-radius: 2px; background: var(--border); outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+    .sequencer-grid { display: flex; flex-direction: column; gap: 6px; }
+    .seq-row { display: flex; align-items: center; gap: 6px; }
+    .seq-note-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); width: 28px; text-align: right; flex-shrink: 0; }
+    .seq-steps { display: flex; gap: 4px; flex-wrap: nowrap; }
+    .step-btn { width: 36px; height: 36px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; transition: all 0.1s; }
+    .step-btn:nth-child(4n+1) { margin-left: 6px; }
+    .step-btn:first-child { margin-left: 0; }
+    .step-btn.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px rgba(124, 106, 247, 0.5); }
+    .step-btn.playing { outline: 2px solid var(--active); outline-offset: 1px; }
+    .step-btn.active.playing { background: var(--active); border-color: var(--active); box-shadow: 0 0 10px rgba(168, 247, 106, 0.7); }
+    .synth-controls { display: flex; gap: 20px; flex-wrap: wrap; }
+    .knob-group { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .knob-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+    .knob-value { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text); }
+    select { font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; cursor: pointer; outline: none; }
+    select:focus { border-color: var(--accent); }
+    canvas { width: 100%; height: 80px; border-radius: var(--radius); background: var(--bg); display: block; }
+    .explainer { font-size: 0.75rem; color: var(--muted); line-height: 1.6; padding: 12px 16px; border-top: 1px solid var(--border); font-family: var(--font-mono); }
+    .explainer strong { color: var(--accent2); }
+    .beat-bar { display: flex; gap: 4px; padding: 0 20px 16px; }
+    .beat-pip { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.05s; }
+    .beat-pip.active { background: var(--active); }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="app-header">
+    <h1>Modular Music Lab</h1>
+    <div>
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-label" id="statusLabel">Stopped</span>
+    </div>
+  </header>
+
+  <!-- MODULE 01: TRANSPORT -->
+  <div class="module-card">
+    <div class="module-header">
+      <span class="module-label">Module 01 — Transport</span>
+      <span class="module-desc">Play · Stop · Tempo</span>
+    </div>
+    <div class="module-body">
+      <div class="transport">
+        <button class="btn btn-play" onclick="startSequencer()">▶ Play</button>
+        <button class="btn btn-stop" onclick="stopSequencer()">■ Stop</button>
+        <div class="bpm-group">
+          <span class="bpm-label">BPM</span>
+          <span class="bpm-display" id="bpmDisplay">120</span>
+          <input type="range" id="bpmSlider" min="60" max="200" value="120" oninput="updateBPM(this.value)"/>
+        </div>
+      </div>
+    </div>
+    <div class="explainer">
+      <strong>How it works:</strong> The transport starts and stops the Tone.js clock.
+      BPM (Beats Per Minute) controls speed — 120 BPM = 2 beats per second.
+      The slider updates <strong>Tone.getTransport().bpm.value</strong> live, even while playing.
+    </div>
+  </div>
+
+  <!-- MODULE 02: STEP SEQUENCER -->
+  <div class="module-card">
+    <div class="module-header">
+      <span class="module-label">Module 02 — Step Sequencer</span>
+      <span class="module-desc">16 steps · 8 notes · click cells to toggle</span>
+    </div>
+    <div class="module-body">
+      <div class="sequencer-grid" id="sequencerGrid"></div>
+    </div>
+    <div class="beat-bar" id="beatBar"></div>
+    <div class="explainer">
+      <strong>How it works:</strong> Each row is a musical note (C4 = middle C on a piano).
+      Each column is one 16th-note step — there are 16 steps = one bar of music.
+      The grid is stored as a 2D array of true/false. On every tick, the sequencer
+      reads the current column and triggers any active (lit) notes.
+    </div>
+  </div>
+
+  <!-- MODULE 03: SYNTH ENGINE -->
+  <div class="module-card">
+    <div class="module-header">
+      <span class="module-label">Module 03 — Synth Engine</span>
+      <span class="module-desc">Waveform · Attack · Release · Volume</span>
+    </div>
+    <div class="module-body">
+      <div class="synth-controls">
+        <div class="knob-group">
+          <span class="knob-label">Waveform</span>
+          <select id="waveSelect" onchange="updateSynth()">
+            <option value="sine">Sine — smooth</option>
+            <option value="square">Square — buzzy</option>
+            <option value="sawtooth" selected>Sawtooth — bright</option>
+            <option value="triangle">Triangle — soft</option>
+          </select>
+        </div>
+        <div class="knob-group">
+          <span class="knob-label">Attack</span>
+          <input type="range" id="attackSlider" min="0.01" max="1" step="0.01" value="0.02"
+            oninput="updateSynth(); document.getElementById('attackVal').textContent = parseFloat(this.value).toFixed(2)+'s'"/>
+          <span class="knob-value" id="attackVal">0.02s</span>
+        </div>
+        <div class="knob-group">
+          <span class="knob-label">Release</span>
+          <input type="range" id="releaseSlider" min="0.1" max="3" step="0.05" value="0.3"
+            oninput="updateSynth(); document.getElementById('releaseVal').textContent = parseFloat(this.value).toFixed(2)+'s'"/>
+          <span class="knob-value" id="releaseVal">0.30s</span>
+        </div>
+        <div class="knob-group">
+          <span class="knob-label">Volume</span>
+          <input type="range" id="volSlider" min="-30" max="0" step="1" value="-12"
+            oninput="updateVolume(this.value); document.getElementById('volVal').textContent = this.value+'db'"/>
+          <span class="knob-value" id="volVal">-12db</span>
+        </div>
+      </div>
+    </div>
+    <div class="explainer">
+      <strong>How it works:</strong> Tone.js creates a <strong>PolySynth</strong> — plays multiple notes simultaneously.
+      Waveform shape changes the timbre (tone colour). Attack = how fast a note fades IN.
+      Release = how fast it fades OUT. Together these form part of the <strong>ADSR envelope</strong>,
+      the standard way to shape any synthesised sound.
+    </div>
+  </div>
+
+  <!-- MODULE 04: VISUALISER -->
+  <div class="module-card">
+    <div class="module-header">
+      <span class="module-label">Module 04 — Visualiser</span>
+      <span class="module-desc">Live waveform output</span>
+    </div>
+    <div class="module-body">
+      <canvas id="waveCanvas"></canvas>
+    </div>
+    <div class="explainer">
+      <strong>How it works:</strong> A Tone.js <strong>Analyser</strong> node taps into the audio signal
+      after the synth but before your speakers. Every animation frame (~60fps),
+      JavaScript reads a snapshot of the waveform and draws it as a line on a canvas element.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ================================================================
+// NOTES & GRID SETUP
+// ================================================================
+const NOTES = ['C4','D4','E4','G4','A4','C5','D5','E5'];
+const STEPS = 16;
+let grid = Array.from({length: NOTES.length}, () => new Array(STEPS).fill(false));
+let currentStep = 0;
+let isPlaying   = false;
+let seqLoop     = null;
+
+// ================================================================
+// SYNTH — PolySynth plays multiple notes at once
+// ================================================================
+let synth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: { type: 'sawtooth' },
+  envelope:   { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.3 }
+}).toDestination();
+synth.volume.value = -12;
+
+// Analyser feeds the visualiser
+const analyser = new Tone.Analyser('waveform', 256);
+synth.connect(analyser);
+
+// ================================================================
+// MODULE 1: TRANSPORT
+// ================================================================
+async function startSequencer() {
+  await Tone.start(); // required by browser security rules
+  if (isPlaying) return;
+  isPlaying = true;
+  document.getElementById('statusDot').classList.add('running');
+  document.getElementById('statusLabel').textContent = 'Playing';
+  seqLoop = new Tone.Sequence((time) => { tickStep(time); }, [...Array(STEPS).keys()], '16n');
+  seqLoop.start(0);
+  Tone.getTransport().start();
+}
+
+function stopSequencer() {
+  if (!isPlaying) return;
+  isPlaying = false;
+  Tone.getTransport().stop();
+  if (seqLoop) { seqLoop.stop(); seqLoop.dispose(); seqLoop = null; }
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('playing'));
+  document.querySelectorAll('.beat-pip').forEach(p => p.classList.remove('active'));
+  currentStep = 0;
+  document.getElementById('statusDot').classList.remove('running');
+  document.getElementById('statusLabel').textContent = 'Stopped';
+}
+
+function updateBPM(val) {
+  Tone.getTransport().bpm.value = val;
+  document.getElementById('bpmDisplay').textContent = val;
+}
+
+// ================================================================
+// MODULE 2: SEQUENCER
+// ================================================================
+function tickStep(time) {
+  NOTES.forEach((note, rowIdx) => {
+    if (grid[rowIdx][currentStep]) {
+      synth.triggerAttackRelease(note, '16n', time);
+    }
+  });
+  const step = currentStep;
+  Tone.getDraw().schedule(() => { updatePlayhead(step); }, time);
+  currentStep = (currentStep + 1) % STEPS;
+}
+
+function updatePlayhead(step) {
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('playing'));
+  document.querySelectorAll(`.step-col-${step}`).forEach(b => b.classList.add('playing'));
+  document.querySelectorAll('.beat-pip').forEach((p, i) => p.classList.toggle('active', i === step));
+}
+
+function buildGrid() {
+  const container = document.getElementById('sequencerGrid');
+  container.innerHTML = '';
+  [...NOTES].reverse().forEach((note, visualRow) => {
+    const dataRow = NOTES.length - 1 - visualRow;
+    const row     = document.createElement('div');
+    row.className = 'seq-row';
+    const label   = document.createElement('span');
+    label.className = 'seq-note-label';
+    label.textContent = note;
+    row.appendChild(label);
+    const stepsDiv = document.createElement('div');
+    stepsDiv.className = 'seq-steps';
+    for (let s = 0; s < STEPS; s++) {
+      const btn = document.createElement('button');
+      btn.className = `step-btn step-col-${s}`;
+      btn.dataset.row  = dataRow;
+      btn.dataset.step = s;
+      btn.addEventListener('click', () => {
+        grid[dataRow][s] = !grid[dataRow][s];
+        btn.classList.toggle('active', grid[dataRow][s]);
+      });
+      stepsDiv.appendChild(btn);
+    }
+    row.appendChild(stepsDiv);
+    container.appendChild(row);
+  });
+  const beatBar = document.getElementById('beatBar');
+  beatBar.innerHTML = '';
+  for (let i = 0; i < STEPS; i++) {
+    const pip = document.createElement('div');
+    pip.className = 'beat-pip';
+    beatBar.appendChild(pip);
+  }
+}
+
+function loadStarterPattern() {
+  const pattern = [
+    [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+    [0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0],
+    [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0],
+    [0,0,0,1, 0,0,0,0, 0,0,0,1, 0,0,0,0],
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0],
+  ];
+  pattern.forEach((row, r) => row.forEach((val, s) => { grid[r][s] = val === 1; }));
+  document.querySelectorAll('.step-btn').forEach(btn => {
+    btn.classList.toggle('active', grid[parseInt(btn.dataset.row)][parseInt(btn.dataset.step)]);
+  });
+}
+
+// ================================================================
+// MODULE 3: SYNTH CONTROLS
+// ================================================================
+function updateSynth() {
+  synth.set({
+    oscillator: { type: document.getElementById('waveSelect').value },
+    envelope:   {
+      attack:  parseFloat(document.getElementById('attackSlider').value),
+      release: parseFloat(document.getElementById('releaseSlider').value)
+    }
+  });
+}
+function updateVolume(val) { synth.volume.value = parseFloat(val); }
+
+// ================================================================
+// MODULE 4: VISUALISER
+// ================================================================
+const canvas = document.getElementById('waveCanvas');
+const ctx    = canvas.getContext('2d');
+
+function drawWaveform() {
+  requestAnimationFrame(drawWaveform);
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W; canvas.height = H;
+  const values = analyser.getValue();
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(42,42,53,0.8)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+  ctx.beginPath();
+  ctx.strokeStyle = isPlaying ? '#a8f76a' : '#7c6af7';
+  ctx.lineWidth   = 2;
+  ctx.shadowBlur  = isPlaying ? 8 : 0;
+  ctx.shadowColor = isPlaying ? '#a8f76a' : '#7c6af7';
+  values.forEach((v, i) => {
+    const x = (i / values.length) * W;
+    const y = ((v + 1) / 2) * H;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ================================================================
+// INIT
+// ================================================================
+buildGrid();
+loadStarterPattern();
+drawWaveform();
+</script>
+</body>
+</html>
