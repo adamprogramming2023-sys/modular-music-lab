@@ -47,6 +47,7 @@
     input[type="range"] { -webkit-appearance: none; width: 120px; height: 4px; border-radius: 2px; background: var(--border); outline: none; }
     input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; }
 
+    /* ── Scale Lock ── */
     .scale-controls { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
     .scale-group { display: flex; flex-direction: column; gap: 6px; }
     .scale-group-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
@@ -61,6 +62,7 @@
     .active-notes-display { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); margin-top: 8px; }
     .active-notes-display span { color: var(--active); }
 
+    /* ── Sequencer ── */
     .sequencer-grid { display: flex; flex-direction: column; gap: 5px; }
     .seq-row { display: flex; align-items: center; gap: 6px; }
     .seq-note-label { font-family: var(--font-mono); font-size: 0.68rem; color: var(--muted); width: 30px; text-align: right; flex-shrink: 0; }
@@ -75,6 +77,7 @@
     .beat-pip { flex: 1; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.05s; }
     .beat-pip.active { background: var(--active); }
 
+    /* ── Synth ── */
     .synth-controls { display: flex; gap: 20px; flex-wrap: wrap; }
     .knob-group { display: flex; flex-direction: column; align-items: center; gap: 8px; }
     .knob-label { font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
@@ -82,10 +85,27 @@
     select { font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; cursor: pointer; outline: none; }
     select:focus { border-color: var(--accent); }
 
+    /* ── Visualiser ── */
     canvas { width: 100%; height: 80px; border-radius: var(--radius); background: var(--bg); display: block; }
 
+    /* ── Explainer ── */
     .explainer { font-size: 0.75rem; color: var(--muted); line-height: 1.6; padding: 12px 16px; border-top: 1px solid var(--border); font-family: var(--font-mono); }
     .explainer strong { color: var(--accent2); }
+
+    /* ── Pattern Memory ── */
+    .memory-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .pattern-input { font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; outline: none; min-width: 160px; }
+    .pattern-input:focus { border-color: var(--accent); }
+    .pattern-select { font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; cursor: pointer; outline: none; min-width: 160px; }
+    .pattern-select:focus { border-color: var(--accent); }
+    .btn-save  { border-color: var(--active);  color: var(--active); }
+    .btn-save:hover  { background: rgba(168,247,106,0.1); }
+    .btn-load  { border-color: var(--accent);  color: var(--accent); }
+    .btn-load:hover  { background: rgba(124,106,247,0.1); }
+    .btn-delete { border-color: var(--accent2); color: var(--accent2); }
+    .btn-delete:hover { background: rgba(247,106,140,0.1); }
+    .memory-status { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); margin-top: 10px; }
+    .memory-status.success { color: var(--active); }
   </style>
 </head>
 <body>
@@ -157,7 +177,33 @@
       so every row is guaranteed to sound good with every other row.
       <strong>Semitones</strong> are the smallest musical step — like moving one key on a piano.
     </div>
-  </div><!-- MODULE 02: STEP SEQUENCER -->
+  </div>
+
+  <!-- MODULE 06: PATTERN MEMORY -->
+  <div class="module-card">
+    <div class="module-header">
+      <span class="module-label">Module 06 — Pattern Memory</span>
+      <span class="module-desc">Save · Load · Delete patterns</span>
+    </div>
+    <div class="module-body">
+      <div class="memory-controls">
+        <input type="text" id="patternName" class="pattern-input" placeholder="Pattern name..."/>
+        <button class="btn btn-save" onclick="savePattern()">💾 Save</button>
+        <select id="patternSelect" class="pattern-select"></select>
+        <button class="btn btn-load" onclick="loadPattern()">📂 Load</button>
+        <button class="btn btn-delete" onclick="deletePattern()">🗑 Delete</button>
+      </div>
+      <div class="memory-status" id="memoryStatus">No pattern loaded</div>
+    </div>
+    <div class="explainer">
+      <strong>How it works:</strong> <strong>localStorage</strong> is a small storage box built into your browser —
+      it remembers data even after you close the tab. Saving converts the grid (a 2D array)
+      into <strong>JSON</strong>, a text format, and stores it under the name you choose.
+      Loading reverses this: text is read back and converted into the grid array again.
+    </div>
+  </div>
+
+  <!-- MODULE 02: STEP SEQUENCER -->
   <div class="module-card">
     <div class="module-header">
       <span class="module-label">Module 02 — Step Sequencer</span>
@@ -235,7 +281,17 @@
     </div>
   </div>
 
-</div><!-- /app-shell --><script>
+</div><!-- /app-shell -->
+
+<script>
+// ================================================================
+// MODULE 05: SCALE DEFINITIONS
+// ================================================================
+// Each scale is an array of semitone intervals from the root note.
+// 0 = root, 2 = whole step up, 1 = half step up, etc.
+// We define 12 intervals per scale to fill all 12 sequencer rows.
+// ================================================================
+
 const SCALE_INTERVALS = {
   major:      [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19],
   minor:      [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17, 19],
@@ -254,13 +310,18 @@ const SCALE_NAMES = {
   chromatic:  'Chromatic',
 };
 
+// All 12 chromatic note names
 const CHROMATIC_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const ROOT_KEYS       = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
+// State
 let selectedKey   = 'C';
 let selectedScale = 'major';
-let activeNotes   = [];
+let activeNotes   = []; // the 12 notes currently in the sequencer
 
+// ================================================================
+// SEQUENCER CORE
+// ================================================================
 const STEPS = 16;
 const NUM_ROWS = 12;
 
@@ -269,6 +330,9 @@ let currentStep = 0;
 let isPlaying   = false;
 let seqLoop     = null;
 
+// ================================================================
+// SYNTH
+// ================================================================
 let synth = new Tone.PolySynth(Tone.Synth, {
   oscillator: { type: 'sawtooth' },
   envelope:   { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.3 }
@@ -278,10 +342,16 @@ synth.volume.value = -12;
 const analyser = new Tone.Analyser('waveform', 256);
 synth.connect(analyser);
 
+// ================================================================
+// MODULE 05: SCALE LOGIC
+// ================================================================
+
+// Convert a note name + octave offset into a Tone.js note string
+// e.g. rootNote('C', 0) = 'C4', rootNote('C', 12) = 'C5'
 function buildNoteFromSemitone(rootName, semitone) {
   const rootIdx   = CHROMATIC_NOTES.indexOf(rootName);
-  const totalSemi = rootIdx + semitone;
-  const octave    = Math.floor(totalSemi / 12) + 3;
+  const totalSemi = rootIdx + semitone; // total semitones from C0
+  const octave    = Math.floor(totalSemi / 12) + 3; // start at octave 3
   const noteName  = CHROMATIC_NOTES[totalSemi % 12];
   return noteName + octave;
 }
@@ -300,7 +370,7 @@ function updateActiveNotesDisplay() {
 function applyScaleToGrid() {
   buildActiveNotes();
   updateActiveNotesDisplay();
-  buildGrid();
+  buildGrid(); // rebuild sequencer with new note labels
 }
 
 function clearGrid() {
@@ -308,7 +378,12 @@ function clearGrid() {
   document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
 }
 
+// ================================================================
+// MODULE 05: UI — KEY AND SCALE BUTTONS
+// ================================================================
+
 function buildScaleUI() {
+  // Key buttons
   const keyContainer = document.getElementById('keyButtons');
   ROOT_KEYS.forEach(key => {
     const btn = document.createElement('button');
@@ -323,6 +398,7 @@ function buildScaleUI() {
     keyContainer.appendChild(btn);
   });
 
+  // Scale buttons
   const scaleContainer = document.getElementById('scaleButtons');
   Object.keys(SCALE_NAMES).forEach(scaleKey => {
     const btn = document.createElement('button');
@@ -338,6 +414,9 @@ function buildScaleUI() {
   });
 }
 
+// ================================================================
+// MODULE 01: TRANSPORT
+// ================================================================
 async function startSequencer() {
   await Tone.start();
   if (isPlaying) return;
@@ -366,6 +445,9 @@ function updateBPM(val) {
   document.getElementById('bpmDisplay').textContent = val;
 }
 
+// ================================================================
+// MODULE 02: SEQUENCER
+// ================================================================
 function tickStep(time) {
   activeNotes.forEach((note, rowIdx) => {
     if (grid[rowIdx][currentStep]) {
@@ -387,6 +469,7 @@ function buildGrid() {
   const container = document.getElementById('sequencerGrid');
   container.innerHTML = '';
 
+  // Rows: top = highest note, bottom = lowest
   [...activeNotes].reverse().forEach((note, visualRow) => {
     const dataRow = NUM_ROWS - 1 - visualRow;
     const row     = document.createElement('div');
@@ -417,6 +500,7 @@ function buildGrid() {
     container.appendChild(row);
   });
 
+  // Beat bar
   const beatBar = document.getElementById('beatBar');
   beatBar.innerHTML = '';
   for (let i = 0; i < STEPS; i++) {
@@ -426,6 +510,9 @@ function buildGrid() {
   }
 }
 
+// ================================================================
+// MODULE 03: SYNTH CONTROLS
+// ================================================================
 function updateSynth() {
   synth.set({
     oscillator: { type: document.getElementById('waveSelect').value },
@@ -437,6 +524,9 @@ function updateSynth() {
 }
 function updateVolume(val) { synth.volume.value = parseFloat(val); }
 
+// ================================================================
+// MODULE 04: VISUALISER
+// ================================================================
 const canvas = document.getElementById('waveCanvas');
 const ctx    = canvas.getContext('2d');
 
@@ -463,11 +553,138 @@ function drawWaveform() {
   ctx.shadowBlur = 0;
 }
 
+// ================================================================
+// MODULE 06: PATTERN MEMORY
+// ================================================================
+const STORAGE_KEY = 'modular-music-lab-patterns';
+
+function loadAllPatterns() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveAllPatterns(patterns) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns));
+}
+
+function refreshPatternDropdown() {
+  const patterns = loadAllPatterns();
+  const select = document.getElementById('patternSelect');
+  select.innerHTML = '';
+
+  const names = Object.keys(patterns);
+  if (names.length === 0) {
+    const opt = document.createElement('option');
+    opt.textContent = 'No saved patterns';
+    opt.disabled = true;
+    select.appendChild(opt);
+    return;
+  }
+
+  names.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+}
+
+function setMemoryStatus(message, success) {
+  const el = document.getElementById('memoryStatus');
+  el.textContent = message;
+  el.classList.toggle('success', !!success);
+}
+
+function savePattern() {
+  const nameInput = document.getElementById('patternName');
+  const name = nameInput.value.trim();
+
+  if (!name) {
+    setMemoryStatus('Enter a name before saving.', false);
+    return;
+  }
+
+  const patterns = loadAllPatterns();
+
+  // A pattern stores everything needed to recreate the sequence:
+  // the grid, the key, and the scale.
+  patterns[name] = {
+    grid: grid,
+    key: selectedKey,
+    scale: selectedScale
+  };
+
+  saveAllPatterns(patterns);
+  refreshPatternDropdown();
+  setMemoryStatus(`Saved "${name}"`, true);
+  nameInput.value = '';
+}
+
+function loadPattern() {
+  const select = document.getElementById('patternSelect');
+  const name = select.value;
+
+  if (!name) {
+    setMemoryStatus('No pattern selected.', false);
+    return;
+  }
+
+  const patterns = loadAllPatterns();
+  const pattern = patterns[name];
+
+  if (!pattern) {
+    setMemoryStatus('Pattern not found.', false);
+    return;
+  }
+
+  // Restore grid, key, and scale
+  grid = pattern.grid;
+  selectedKey = pattern.key;
+  selectedScale = pattern.scale;
+
+  // Update key/scale button highlights
+  document.querySelectorAll('.key-btn').forEach(b => {
+    b.classList.toggle('selected', b.textContent === selectedKey);
+  });
+  document.querySelectorAll('.scale-btn').forEach(b => {
+    b.classList.toggle('selected', SCALE_NAMES[selectedScale] === b.textContent);
+  });
+
+  buildActiveNotes();
+  updateActiveNotesDisplay();
+  buildGrid();
+
+  setMemoryStatus(`Loaded "${name}"`, true);
+}
+
+function deletePattern() {
+  const select = document.getElementById('patternSelect');
+  const name = select.value;
+
+  if (!name) {
+    setMemoryStatus('No pattern selected.', false);
+    return;
+  }
+
+  const patterns = loadAllPatterns();
+  delete patterns[name];
+  saveAllPatterns(patterns);
+  refreshPatternDropdown();
+  setMemoryStatus(`Deleted "${name}"`, false);
+}
+
+
 buildScaleUI();
 buildActiveNotes();
 updateActiveNotesDisplay();
 buildGrid();
 drawWaveform();
+refreshPatternDropdown();
 </script>
 </body>
 </html>
